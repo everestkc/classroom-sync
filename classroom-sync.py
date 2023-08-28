@@ -12,7 +12,7 @@
 #       3. Update classroom-config.json with the details for your classroom  
 #       4. Enable API access for Canvas user account and store token in OS keyring. Details are provided below
 #
-#  Usage: classroom-sync.py <assignment> 
+#  Usage: classroom-sync.py <assignment> [<student_number>]
 #
 #   assignment - You can find the list of assignment names on GitHub Classroom
 
@@ -24,6 +24,7 @@ import os
 import json
 import subprocess
 from subprocess import CalledProcessError
+from time import sleep
 
 import keyring
 from canvasapi import Canvas
@@ -112,7 +113,7 @@ def get_github_roster(roster_file):
     return github_roster
 
 
-def clone_student_repos(students,github_roster,github_organization,assignment_name,classroom_path,student_filter):
+def clone_student_repos(students,github_roster,github_organization,assignment_name,classroom_path,student_count,student_filter):
 
     # GitHub repo URLs are in lowercase, so convert specified
     #    assignment name for consistency
@@ -127,17 +128,21 @@ def clone_student_repos(students,github_roster,github_organization,assignment_na
         os.mkdir(assignment_path)
 
     repo_status = {}
-    num_students = len(students)
-    student_count = 1
+    students_list=list(students.values())
+    students_list.sort(key=lambda x: x.login_id)
+    num_students = len(students_list)
+    students_list=students_list[student_count-1:]
     print("Cloning Student Repos\n\n")
-    for student in students.values():
+    for student in students_list:
         canvas_username = student.login_id
         if canvas_username.lower() not in github_roster.keys():
+            print("%-40s (%s)" % (canvas_username, str(student_count) + "/" + str(num_students)))
+            student_count = student_count + 1
             print("- Warning: User not found on GitHub roster: " + canvas_username)
             repo_status[canvas_username] = "User not found on GitHub roster"
             continue
         github_username = github_roster[canvas_username.lower()]
-
+        
         if student_filter is None or (student_filter is not None and canvas_username.lower() == student_filter):
             print("%-40s (%s)" % (canvas_username, str(student_count) + "/" + str(num_students)))
             student_count = student_count + 1
@@ -158,24 +163,31 @@ def clone_student_repos(students,github_roster,github_organization,assignment_na
                     subprocess.run(['git','clone', url, canvas_username],cwd=assignment_path,capture_output=True,timeout=20,check=True,text=True)
                     repo_status[canvas_username] = "Repo cloned successfully: %s" % (url)
             except CalledProcessError as e:
-                print("- Warning: Unable to clone repo: " + url)
-                repo_status[canvas_username] = "Error while cloning repository"
+                    print("- Warning: Unable to clone repo: " + url)
+                    repo_status[canvas_username] = "Error while cloning repository"
             except subprocess.TimeoutExpired as e:
-                print("- Warning: Unable to clone repo (timeout): " + url)
-                repo_status[canvas_username] = "Timeout while cloning repository"
-
+                 print("- Warning: Unable to clone repo (timeout): " + url)
+                 repo_status[canvas_username] = "Timeout while cloning repository"
+            print(repo_status[canvas_username])
     return repo_status
 
 
 def main():
     
+    student_count = 1
     # Check the parameters
     if len(sys.argv) < 2:
-        print("usage: classroom-sync.py <assignment>")
+        print("usage: classroom-sync.py <assignment> [<student_number>]")
         sys.exit(1)
 
     # Parse the command line args
     assignment = sys.argv[1]
+    if len(sys.argv) == 3:
+        try:
+            student_count = int(sys.argv[2])
+        except:
+            print("usage: classroom-sync.py <assignment> [<student_number>]")
+            sys.exit(1)
 
     # Load the classroom configuration data
     classroom_config = load_classroom_config("classroom-config.json")
@@ -185,7 +197,6 @@ def main():
     course_name = classroom_config['global']['canvas-course-name']
     api_url = classroom_config['global']['canvas-url']
     github_org = classroom_config['global']['github-org']
-
 
     # Connect to the Canvas gradebook
     canvas = canvas_connect(api_url)
@@ -205,7 +216,7 @@ def main():
     # Load GitHub Roster and store to dictionary, indexed by Canvas username in lowercase
     github_roster = get_github_roster(roster_file)
 
-    clone_student_repos(canvas_students,github_roster,github_org,assignment,classroom_path,student_filter=None)
+    clone_student_repos(canvas_students,github_roster,github_org,assignment,classroom_path,student_count,student_filter=None)
 
 
 if __name__ == '__main__':
