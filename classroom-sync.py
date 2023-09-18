@@ -183,7 +183,7 @@ def main():
         print("Error: Unable to connect to Canvas ")
         sys.exit(1)
 
-    canvas_course = canvas.course_id
+    canvas_course = canvas.get_course(course_id)
 
     if canvas_course == None:
         print("Error: Unable to Canvas course match for: " + course_id)
