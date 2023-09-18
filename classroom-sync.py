@@ -59,28 +59,6 @@ def canvas_connect(api_url):
 
     return canvas
 
-# Iterates through the list of active courses and returns
-#   a course object that matches the specified course_name.
-#   if no matching course is found, returns None
-def canvas_get_course(canvas,course_name):
-    course_dict={}
-    for c in canvas.get_courses(state=['available']):
-
-        # Courses that are published, but that are date restricted are still considered "available" :(
-        #   This causes access errors and therefore need to be excluded.
-        if "access_restricted_by_date" in c.__dict__.keys():
-            continue
-
-        course_dict[c.name] = c
-
-
-    course_match = None
-    for c in course_dict.keys():
-        if course_name in c:
-            course_match = course_dict[c]
-
-    return course_match
-
 # Return a dictionary containing User objects of students
 #   enrolled the specified course. The dictionary keys
 #   are the canvas user_id numbers.
@@ -194,7 +172,7 @@ def main():
 
     roster_file = classroom_config['global']['github-roster']
     classroom_path = classroom_config['global']['classroom-path']
-    course_name = classroom_config['global']['canvas-course-name']
+    course_id = classroom_config['global']['canvas-course-id']
     api_url = classroom_config['global']['canvas-url']
     github_org = classroom_config['global']['github-org']
 
@@ -205,10 +183,10 @@ def main():
         print("Error: Unable to connect to Canvas ")
         sys.exit(1)
 
-    canvas_course = canvas_get_course(canvas,course_name)
+    canvas_course = canvas.course_id
 
     if canvas_course == None:
-        print("Error: Unable to Canvas course match for: " + course_name)
+        print("Error: Unable to Canvas course match for: " + course_id)
         sys.exit(1)
 
     canvas_students = canvas_get_students(canvas_course)
